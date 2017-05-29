@@ -3,6 +3,7 @@
  *
  *  HTML in Posts plugin (/inc/plugins/htmlposts.php)
  *  Author: Diogo Parrinha
+ *  Edited By: Shinka
  *  Copyright: © 2014 Diogo Parrinha
  *  
  *  Website: http://mybb-plugins.com
@@ -37,6 +38,7 @@ if(!defined("IN_MYBB"))
 
 // add hooks
 $plugins->add_hook('parse_message_start', 'htmlposts_parse');
+$plugins->add_hook('parse_message', 'htmlposts_mycode_parse');
 
 function htmlposts_info()
 {
@@ -107,6 +109,18 @@ function htmlposts_activate()
 
 	$db->insert_query("settings", $setting);
 	
+	$setting = array(
+		"sid"			=> NULL,
+		"name"			=> "htmlposts_mycode",
+		"title"			=> "Use MyCode Wrapper?",
+		"description"	=> "Only parse HTML that is wrapped in [html][/html] tags.",
+		"optionscode"	=> "yesno",
+		"disporder"		=> 4,
+		"gid"			=> $gid
+	);
+
+	$db->insert_query("settings", $setting);
+	
 	rebuild_settings();
 }
 
@@ -119,7 +133,7 @@ function htmlposts_deactivate()
 	$db->delete_query("settinggroups", "name = 'htmlposts'");
 
 	// remove settings
-	$db->delete_query('settings', 'name IN (\'htmlposts_groups\',\'htmlposts_uids\',\'htmlposts_forums\')');
+	$db->delete_query('settings', 'name IN (\'htmlposts_groups\',\'htmlposts_uids\',\'htmlposts_forums\',\'htmlposts_mycode\')');
 
 	rebuild_settings();
 }
@@ -224,7 +238,7 @@ function htmlposts_parse(&$message)
 				// if we're trying to disable it but it's enabled by default, disallow the action
 				if ($status == 0 && $this->html_enabled == 1)
 					return false;
-					
+
 				global $parser;
 					
 				// Set to desired status
@@ -285,8 +299,36 @@ function htmlposts_parse(&$message)
 		return;
 	}
 	
+	// Handle parsing at end if mycode wrapper enabled.
+	if ($mybb->settings['htmlposts_mycode'])
+	{
+		$control_html->set_html(0);
+		global $html_wrapper;
+		$html_wrapper = true;
+		return;
+	}
+
 	// Enable HTML for allowed users :)
 	$control_html->set_html(1);
+}
+
+function htmlposts_mycode_parse(&$message)
+{
+	global $mybb, $parser, $html_wrapper;
+
+	if ($html_wrapper)
+	{
+		$pattern = '/\[html\](.*?)\[\/html\]/is';
+		while (preg_match($pattern, $message, $matches)) 
+		{
+			$unparsed = str_replace('&lt;', '<', $matches[1]);
+			$unparsed = str_replace('&gt;', '>', $unparsed);
+			$unparsed = str_replace("\n", '', $unparsed);
+			$message = str_replace($matches[0], $unparsed, $message);
+		}
+
+		$html_wrapper = false;
+	}
 }
 
 ?>
